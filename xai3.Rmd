@@ -16,6 +16,8 @@ library(lubridate)
 library(ranger) # For Random Forest
 library(pdp)    # For Partial Dependence Plots
 library(ggplot2) # For plotting
+
+SEED <- 1234 # Set seed for reproducibility
 ```
 
 
@@ -79,7 +81,7 @@ model_data_day <- na.omit(model_data_day) # Simple NA removal
 ```{r}
 # Fit Random Forest model
 # Using ranger for efficiency. Using default mtry and 500 trees.
-set.seed(123) # for reproducibility
+set.seed(SEED) # for reproducibility
 rf_model_day <- ranger(
   formula = cnt ~ .,
   data = model_data_day,
@@ -94,19 +96,6 @@ print(rf_model_day)
 
 We'll generate PDPs for days_since_2011, temp_scaled, hum_scaled, and windspeed_scaled.
 
-```{r}
-# Features for PDP
-features_to_plot_day <- c("days_since_2011", "temp_scaled", "hum_scaled", "windspeed_scaled")
-
-# Generate and plot PDPs
-for (feature in features_to_plot_day) {
-  pdp_obj <- partial(rf_model_day, pred.var = feature, plot = FALSE, train = model_data_day)
-  p <- plotPartial(pdp_obj, rug = TRUE, train = model_data_day) +
-    ylab("Predicted Bike Count (cnt)") +
-    ggtitle(paste("PDP for", feature))
-  print(p)
-}
-```
 
 ```{r}
 # Features for PDP
@@ -171,10 +160,90 @@ for (feature in features_to_plot_day) {
 
 
 
+## Exercise 2: Bidimensional Partial Dependency Plot (Bike Rentals - hour.csv)
+
+### Data loading and preprocessing
+
+```{r}
+bike_data_hour_full <- read_csv("data/hour.csv")
+
+# Preprocessing
+# Scale temp, hum, windspeed similar to day.csv for consistency
+# Original values in hour.csv for temp, atemp, hum, windspeed are normalized (0-1)
+bike_data_hour_processed <- bike_data_hour_full %>%
+  mutate(
+    temp_scaled = temp * 41,       # Actual temperature in Celsius
+    hum_scaled = hum * 100,        # Actual humidity in %
+    windspeed_scaled = windspeed * 67, # Actual windspeed
+    # Create categorical season and weather if needed for the model,
+    # or use them as is if ranger handles them well.
+    # For PDP, we only need temp_scaled, hum_scaled, and other predictors.
+    season = factor(season),
+    weathersit = factor(weathersit),
+    holiday = factor(holiday),
+    workingday = factor(workingday),
+    weekday = factor(weekday),
+    yr = factor(yr) # yr is 0 or 1, can be a factor or numeric
+  )
+
+# Select features for the model.
+# Include relevant features that might influence bike count.
+model_features_hour <- c(
+    "cnt", "season", "yr", "mnth", "hr", "holiday", "weekday",
+    "workingday", "weathersit", "temp_scaled", "hum_scaled", "windspeed_scaled"
+)
+model_data_hour_processed <- bike_data_hour_processed %>%
+  select(all_of(model_features_hour))
+
+# Handle missing values (if any)
+print(paste("Missing values in model_data_hour_processed:", sum(is.na(model_data_hour_processed))))
+model_data_hour_processed <- na.omit(model_data_hour_processed)
+```
+
+### Random sampling to reduce the amount of data (2000 rows)
+
+```{r}
+model_data_hour_processed
+```
 
 
 
+```{r}
+set.seed(SEED) # for reproducibility
+sample_size_hour <- 2000
+n_total_rows_hour <- nrow(model_data_hour_processed)
 
+if (n_total_rows_hour > sample_size_hour) {
+  # Determine the latest possible starting point for a contiguous block
+  max_start_index <- n_total_rows_hour - sample_size_hour + 1
+
+  # Randomly select a starting index for the block
+  # Ensure max_start_index is at least 1
+  if (max_start_index < 1) {
+      max_start_index <- 1 # Should not happen if n_total_rows_hour > sample_size_hour
+  }
+  start_index <- sample(1:max_start_index, 1)
+
+  # Extract the contiguous block of rows
+  model_data_hour_sample <- model_data_hour_processed[start_index:(start_index + sample_size_hour - 1), ]
+
+  cat("Sampled a contiguous block of", sample_size_hour, "rows, starting at index", start_index, "\n")
+  cat("Time range of sample (based on first and last 'instant' if available, or row numbers):\n")
+  # If you have 'dteday' and 'hr' in model_data_hour_sample, you can print their range
+  # For example, if 'instant' is still in bike_data_hour_full and corresponds to rows:
+  # first_instant_in_sample <- bike_data_hour_full$instant[start_index]
+  # last_instant_in_sample <- bike_data_hour_full$instant[start_index + sample_size_hour - 1]
+  # cat("Instant range:", first_instant_in_sample, "to", last_instant_in_sample, "\n")
+
+} else {
+  # If the total number of rows is less than or equal to the sample size, use all data
+  model_data_hour_sample <- model_data_hour_processed
+  cat("Using all", n_total_rows_hour, "rows as sample size is not smaller.\n")
+}
+
+# Verify the dimensions of the sample
+print(dim(model_data_hour_sample))
+```
 
 
 
