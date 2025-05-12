@@ -200,7 +200,7 @@ print(paste("Missing values in model_data_hour_processed:", sum(is.na(model_data
 model_data_hour_processed <- na.omit(model_data_hour_processed)
 ```
 
-### Random sampling to reduce the amount of data (2000 rows)
+### Random sampling to reduce the amount of data (1000 rows)
 
 ```{r}
 model_data_hour_processed
@@ -210,7 +210,7 @@ model_data_hour_processed
 
 ```{r}
 set.seed(SEED) # for reproducibility
-sample_size_hour <- 2000
+sample_size_hour <- 1000
 n_total_rows_hour <- nrow(model_data_hour_processed)
 
 if (n_total_rows_hour > sample_size_hour) {
@@ -246,8 +246,58 @@ print(dim(model_data_hour_sample))
 ```
 
 
+```{r}
+set.seed(SEED)
+rf_model_hour <- ranger(
+  formula = cnt ~ .,
+  data = model_data_hour_sample,
+  num.trees = 500,
+  importance = 'permutation'
+)
+print(rf_model_hour)
+```
 
 
+```{r}
+# Generate 2D PDP for humidity and temperature
+pdp_2d_hour <- partial(
+  rf_model_hour,
+  pred.var = c("temp_scaled", "hum_scaled"),
+  plot = FALSE,
+  train = model_data_hour_sample,
+  chull = TRUE # Computes PDP only within the convex hull of training data for these two features
+)
+
+```
+
+```{r}
+# Determine tile width and height for geom_tile
+# This calculation assumes a somewhat regular grid from partial()
+temp_breaks <- sort(unique(pdp_2d_hour$temp_scaled))
+hum_breaks <- sort(unique(pdp_2d_hour$hum_scaled))
+
+# A more robust way to set width/height if grid isn't perfectly uniform
+# or if there are few unique values.
+tile_width <- if (length(temp_breaks) > 1) mean(diff(temp_breaks)) else (if(length(temp_breaks)==1) 1 else 0)
+tile_height <- if (length(hum_breaks) > 1) mean(diff(hum_breaks)) else (if(length(hum_breaks)==1) 1 else 0)
+
+# Ensure non-zero width/height if only one break point (though partial should give a grid)
+if(tile_width == 0 && length(temp_breaks) > 0) tile_width <- diff(range(model_data_hour_sample$temp_scaled, na.rm = TRUE))/10 # Fallback
+if(tile_height == 0 && length(hum_breaks) > 0) tile_height <- diff(range(model_data_hour_sample$hum_scaled, na.rm = TRUE))/10 # Fallback
+
+
+plot_2d_pdp_hour <- ggplot(pdp_2d_hour, aes(x = temp_scaled, y = hum_scaled, fill = yhat)) +
+  geom_tile(width = tile_width, height = tile_height) +
+  scale_fill_viridis_c(name = "Predicted Bike Count (cnt)") +
+  geom_rug(data = model_data_hour_sample, aes(x = temp_scaled, y = NULL), sides = "b", alpha = 0.1, inherit.aes = FALSE) +
+  geom_rug(data = model_data_hour_sample, aes(x = NULL, y = hum_scaled), sides = "l", alpha = 0.1, inherit.aes = FALSE) +
+  xlab("Temperature (Scaled)") +
+  ylab("Humidity (Scaled)") +
+  ggtitle("2D PDP: Temperature vs. Humidity for Bike Rentals") +
+  theme_minimal()
+
+print(plot_2d_pdp_hour)
+```
 
 
 
