@@ -73,6 +73,102 @@ model_data_day <- na.omit(model_data_day) # Simple NA removal
 
 ```
 
+### Fit random forest model
+
+
+```{r}
+# Fit Random Forest model
+# Using ranger for efficiency. Using default mtry and 500 trees.
+set.seed(123) # for reproducibility
+rf_model_day <- ranger(
+  formula = cnt ~ .,
+  data = model_data_day,
+  num.trees = 500,
+  importance = 'permutation' # Good to have for general feature importance
+)
+
+print(rf_model_day)
+```
+
+### Generate and Visualize 1D PDPs
+
+We'll generate PDPs for days_since_2011, temp_scaled, hum_scaled, and windspeed_scaled.
+
+```{r}
+# Features for PDP
+features_to_plot_day <- c("days_since_2011", "temp_scaled", "hum_scaled", "windspeed_scaled")
+
+# Generate and plot PDPs
+for (feature in features_to_plot_day) {
+  pdp_obj <- partial(rf_model_day, pred.var = feature, plot = FALSE, train = model_data_day)
+  p <- plotPartial(pdp_obj, rug = TRUE, train = model_data_day) +
+    ylab("Predicted Bike Count (cnt)") +
+    ggtitle(paste("PDP for", feature))
+  print(p)
+}
+```
+
+```{r}
+# Features for PDP
+features_to_plot_day <- c("days_since_2011", "temp_scaled", "hum_scaled", "windspeed_scaled")
+
+# Generate and plot PDPs
+for (feature in features_to_plot_day) {
+  cat("Processing feature:", feature, "\n") # For debugging
+
+  # Generate partial dependence data
+  pdp_obj <- NULL # Initialize to ensure it's fresh each iteration
+  tryCatch({
+    pdp_obj <- partial(rf_model_day,
+                       pred.var = feature,
+                       plot = FALSE, # Important: we want data, not an immediate plot
+                       train = model_data_day)
+    cat("Successfully created pdp_obj for", feature, "\n")
+    # print(head(pdp_obj)) # Optional: uncomment to inspect pdp_obj
+  }, error = function(e) {
+    cat("Error in partial() for feature", feature, ":", e$message, "\n")
+  })
+
+  if (!is.null(pdp_obj)) {
+    # Try plotting using autoplot first
+    p <- NULL # Initialize p
+    tryCatch({
+      # autoplot is often more robust for pdp objects
+      p <- autoplot(pdp_obj, rug = TRUE, train = model_data_day) +
+        ylab("Predicted Bike Count (cnt)") +
+        ggtitle(paste("PDP for", feature)) +
+        theme_minimal() # Added a theme for better default appearance
+      print(p)
+      cat("Successfully plotted with autoplot for", feature, "\n")
+    }, error = function(e_autoplot) {
+      cat("Error using autoplot for feature", feature, ":", e_autoplot$message, "\n")
+      cat("Attempting with plotPartial as a fallback...\n")
+      # Fallback to plotPartial if autoplot fails, but isolate its call
+      plot_base <- NULL
+      tryCatch({
+          plot_base <- plotPartial(pdp_obj, rug = TRUE, train = model_data_day)
+          # Check if plot_base is a ggplot object
+          if (inherits(plot_base, "ggplot")) {
+              p <- plot_base +
+                ylab("Predicted Bike Count (cnt)") +
+                ggtitle(paste("PDP for", feature)) +
+                theme_minimal()
+              print(p)
+              cat("Successfully plotted with plotPartial for", feature, "\n")
+          } else {
+              cat("plotPartial did not return a ggplot object for", feature, ". Class was:", class(plot_base), "\n")
+          }
+      }, error = function(e_plotpartial) {
+          cat("Error in plotPartial() for feature", feature, ":", e_plotpartial$message, "\n")
+      })
+    })
+  } else {
+    cat("Skipping plot for", feature, "due to error in partial().\n")
+  }
+  cat("------------------------------------\n") # Separator
+}
+```
+
 
 
 
