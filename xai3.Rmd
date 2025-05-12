@@ -1,0 +1,100 @@
+---
+title: "xAI 3"
+author:
+  - name: "Laiqian Ji"
+  - name: "Ernesto Martínez"
+  - name: "Álvaro Prado Expóstio"
+format: html
+---
+
+# XAI: Interpretable Models 3
+
+```{r}
+library(readr)
+library(dplyr)
+library(lubridate)
+library(ranger) # For Random Forest
+library(pdp)    # For Partial Dependence Plots
+library(ggplot2) # For plotting
+```
+
+
+## Exercise 1: One-dimensional Partial Dependence Plot (Bike Rentals - day.csv)
+
+### Loading and preprocessing
+
+We'll use slightly the same preprocessing as in the previous xAI task for the bike rentals dataset.
+
+```{r}
+# Load data
+bike_data_day <- read_csv("data/day.csv")
+
+# Preprocessing (based on your script)
+bike_data_day <- bike_data_day %>%
+  mutate(
+    spring = ifelse(season == 1, 1, 0),
+    summer = ifelse(season == 2, 1, 0),
+    fall = ifelse(season == 3, 1, 0)
+  )
+
+bike_data_day <- bike_data_day %>%
+  mutate(
+    MISTY = ifelse(weathersit == 2, 1, 0),
+    RAIN = ifelse(weathersit %in% c(3, 4), 1, 0) # Assuming 4 is also bad weather
+  )
+
+bike_data_day <- bike_data_day %>%
+  mutate(
+    temp_scaled = temp * 41,       # Actual temperature in Celsius
+    hum_scaled = hum * 100,        # Actual humidity in %
+    windspeed_scaled = windspeed * 67 # Actual windspeed
+  )
+
+bike_data_day <- bike_data_day %>%
+  mutate(
+    dteday = as.Date(dteday),
+    days_since_2011 = as.numeric(difftime(dteday, as.Date("2011-01-01"), units = "days"))
+  )
+
+# Select features for the model
+# Note: We use the scaled versions of temp, hum, windspeed for easier interpretation
+model_data_day <- bike_data_day %>%
+  select(
+    cnt, workingday, holiday, spring, summer, fall, MISTY, RAIN,
+    temp_scaled, hum_scaled, windspeed_scaled, days_since_2011
+  )
+
+# Convert logicals/numerics that should be factors (if any, for RF)
+# For ranger, it can often handle numeric 0/1s, but explicit factors can be clearer.
+# For simplicity here, we'll let ranger handle them.
+# Ensure no missing values, or handle them (e.g., imputation)
+print(paste("Missing values in model_data_day:", sum(is.na(model_data_day))))
+model_data_day <- na.omit(model_data_day) # Simple NA removal
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
