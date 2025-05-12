@@ -344,12 +344,100 @@ if (nrow(model_data_house_processed) > sample_size_house) {
 
 
 
+### Fit random forest
+
+```{r}
+set.seed(SEED)
+rf_model_house <- ranger(
+  formula = price ~ .,
+  data = model_data_house_sample,
+  num.trees = 500,
+  importance = 'permutation'
+)
+print(rf_model_house)
+
+```
+
+### Generate and visualize 1D PDPs
+
+
+```{r}
+features_to_plot_house <- c("bedrooms", "bathrooms", "sqft_living", "floors")
+
+# Generate and plot PDPs for House Data
+for (feature in features_to_plot_house) {
+  cat("Processing house feature:", feature, "\n") # For debugging
+
+  # Generate partial dependence data
+  pdp_obj_house <- NULL # Initialize
+  tryCatch({
+    pdp_obj_house <- partial(rf_model_house,
+                             pred.var = feature,
+                             plot = FALSE, # We want data
+                             train = model_data_house_sample,
+                             # For continuous variables like sqft_living,
+                             # you might want to control the grid:
+                             # grid.resolution = 30, # or
+                             # quantiles = TRUE, n.ice = 50 # if you want ICE-like behavior for PDP
+                             # For now, using defaults which should be fine for these features
+                             )
+    cat("Successfully created pdp_obj_house for", feature, "\n")
+    # print(head(pdp_obj_house)) # Optional: inspect
+  }, error = function(e) {
+    cat("Error in partial() for house feature", feature, ":", e$message, "\n")
+  })
+
+  if (!is.null(pdp_obj_house)) {
+    p_house <- NULL # Initialize
+    tryCatch({
+      # Try autoplot first
+      p_house <- autoplot(pdp_obj_house, rug = TRUE, train = model_data_house_sample) +
+        ylab("Predicted House Price") +
+        ggtitle(paste("PDP for", feature)) +
+        theme_minimal()
+      print(p_house)
+      cat("Successfully plotted with autoplot for house feature", feature, "\n")
+    }, error = function(e_autoplot) {
+      cat("Error using autoplot for house feature", feature, ":", e_autoplot$message, "\n")
+      cat("Attempting with plotPartial as a fallback for house feature", feature, "...\n")
+      
+      plot_base_house <- NULL
+      tryCatch({
+          plot_base_house <- plotPartial(pdp_obj_house, rug = TRUE, train = model_data_house_sample)
+          if (inherits(plot_base_house, "ggplot")) {
+              p_house <- plot_base_house +
+                ylab("Predicted House Price") +
+                ggtitle(paste("PDP for", feature)) +
+                theme_minimal()
+              print(p_house)
+              cat("Successfully plotted with plotPartial for house feature", feature, "\n")
+          } else {
+              cat("plotPartial did not return a ggplot object for house feature", feature, ". Class was:", class(plot_base_house), "\n")
+          }
+      }, error = function(e_plotpartial) {
+          cat("Error in plotPartial() for house feature", feature, ":", e_plotpartial$message, "\n")
+      })
+    })
+  } else {
+    cat("Skipping plot for house feature", feature, "due to error in partial().\n")
+  }
+  cat("------------------------------------\n") # Separator
+}
+
+```
 
 
 
 
+### Questions to use in the report to analyse the influence of bedrooms, bathrooms, sqft_living and floors on the predicted price.
 
+- Bedrooms: Does price generally increase with more bedrooms? Is there a point of diminishing returns or even a decrease (e.g., too many small bedrooms)?
 
+- Bathrooms: Similar to bedrooms, how does the number of bathrooms affect price?
+
+- Sqft_living: This is likely a strong driver. Is the relationship linear, or does it show non-linearities?
+
+- Floors: How does the number of floors influence price? Does it depend on other factors (though PDP shows marginal effect)?
 
 
 
