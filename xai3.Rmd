@@ -299,6 +299,50 @@ plot_2d_pdp_hour <- ggplot(pdp_2d_hour, aes(x = temp_scaled, y = hum_scaled, fil
 print(plot_2d_pdp_hour)
 ```
 
+### Exercise 3: PDP to explain the price of a house (kc_house_data.csv)
+
+```{r}
+# Load data
+house_data_full <- read_csv("data/kc_house_data.csv")
+
+# Select relevant features and target
+# Features for PDP: bedrooms, bathrooms, sqft_living, floors
+# Other features for model: sqft_lot, yr_built (as per task description)
+model_features_house <- c(
+  "price", "bedrooms", "bathrooms", "sqft_living",
+  "sqft_lot", "floors", "yr_built"
+  # Consider adding other potentially relevant features like:
+  # "waterfront", "view", "condition", "grade", "sqft_above", "sqft_basement"
+  # For now, sticking to the explicitly mentioned ones for the model.
+)
+model_data_house_processed <- house_data_full %>%
+  select(all_of(model_features_house)) %>%
+  mutate( # Ensure numeric types where appropriate
+    bedrooms = as.numeric(bedrooms),
+    bathrooms = as.numeric(bathrooms),
+    floors = as.numeric(floors)
+    # yr_built is already numeric
+  )
+
+# Handle missing values
+print(paste("Missing values in model_data_house_processed:", sum(is.na(model_data_house_processed))))
+model_data_house_processed <- na.omit(model_data_house_processed)
+```
+
+
+```{r}
+# Random sampling (as proposed: 5000 rows)
+set.seed(SEED) # for reproducibility
+sample_size_house <- 5000
+if (nrow(model_data_house_processed) > sample_size_house) {
+  model_data_house_sample <- model_data_house_processed %>% sample_n(sample_size_house)
+} else {
+  model_data_house_sample <- model_data_house_processed
+}
+
+```
+
+
 
 
 
