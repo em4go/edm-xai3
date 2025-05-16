@@ -31,7 +31,7 @@ We'll use slightly the same preprocessing as in the previous xAI task for the bi
 # Load data
 bike_data_day <- read_csv("data/day.csv")
 
-# Preprocessing (based on your script)
+# Preprocessing
 bike_data_day <- bike_data_day %>%
   mutate(
     spring = ifelse(season == 1, 1, 0),
